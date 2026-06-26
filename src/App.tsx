@@ -1,8 +1,11 @@
-import { useState, type ReactElement } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { useState, type ReactElement, useEffect, useRef } from 'react';
+import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import AuthPage from './pages/AuthPage';
 import Dashboard from './pages/Dashboard';
+import ScriptsPage from './pages/ScriptsPage';
+import UploadPage from './pages/UploadPage';
+import ScriptDetailPage from './pages/ScriptDetailPage';
 import { signOut } from './lib/auth';
 
 function ComingSoon({ title }: { title: string }) {
@@ -38,6 +41,11 @@ const ICONS: Record<string, ReactElement> = {
 export default function App() {
   const { user, loading } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // Close sidebar on route change
+  useEffect(() => { setSidebarOpen(false); }, [location.pathname]);
 
   if (loading) {
     return (
@@ -54,6 +62,11 @@ export default function App() {
 
   const displayName = user.profile?.display_name || user.email?.split('@')[0] || 'User';
   const initials = displayName.slice(0, 2).toUpperCase();
+
+  const isActive = (to: string) => {
+    if (to === '/') return location.pathname === '/' || location.pathname === '';
+    return location.pathname.startsWith(to);
+  };
 
   return (
     <div className="min-h-screen lg:pl-64">
@@ -77,12 +90,12 @@ export default function App() {
             <ul className="space-y-0.5">
               {NAV_ITEMS.map((item) => (
                 <li key={item.to}>
-                  <a href={item.to === '/' ? '#' : item.to} onClick={(e) => { e.preventDefault(); window.history.pushState({}, '', import.meta.env.BASE_URL + (item.to === '/' ? '' : item.to)); setSidebarOpen(false); window.dispatchEvent(new PopStateEvent('popstate')); }}
-                    className="flex items-center gap-3 rounded-lg border-l-2 border-transparent px-3 py-2.5 text-sm font-medium text-slate-400 hover:bg-white/5 hover:text-slate-200" data-nav={item.to}>
+                  <button onClick={() => navigate(item.to)}
+                    className={`flex w-full items-center gap-3 rounded-lg border-l-2 px-3 py-2.5 text-sm font-medium transition-all ${isActive(item.to) ? 'border-accent bg-accent/10 text-accent-light' : 'border-transparent text-slate-400 hover:bg-white/5 hover:text-slate-200'}`}>
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{ICONS[item.icon]}</svg>
                     {item.label}
                     {item.badge && <span className="ml-auto chip text-[9px]">{item.badge}</span>}
-                  </a>
+                  </button>
                 </li>
               ))}
             </ul>
@@ -120,7 +133,9 @@ export default function App() {
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
         <Routes>
           <Route path="/" element={<Dashboard />} />
-          <Route path="/scripts" element={<ComingSoon title="Scripts" />} />
+          <Route path="/scripts" element={<ScriptsPage />} />
+          <Route path="/upload" element={<UploadPage />} />
+          <Route path="/script/:id" element={<ScriptDetailPage />} />
           <Route path="/keys" element={<ComingSoon title="Key System" />} />
           <Route path="/obfuscator" element={<ComingSoon title="Obfuscator" />} />
           <Route path="/settings" element={<ComingSoon title="Settings" />} />
