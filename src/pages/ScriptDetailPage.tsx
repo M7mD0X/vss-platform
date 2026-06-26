@@ -4,7 +4,7 @@ import { fetchScript, fetchVersions, addVersion, type Script, type ScriptVersion
 
 export default function ScriptDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
+  
   const [script, setScript] = useState<Script | null>(null);
   const [versions, setVersions] = useState<ScriptVersion[]>([]);
   const [selectedVersion, setSelectedVersion] = useState<number | null>(null);

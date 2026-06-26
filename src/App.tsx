@@ -1,4 +1,4 @@
-import { useState, type ReactElement, useEffect, useRef } from 'react';
+import { useState, type ReactElement, useEffect } from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import AuthPage from './pages/AuthPage';

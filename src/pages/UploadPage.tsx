@@ -67,7 +67,7 @@ export default function UploadPage() {
         sourceCode,
         changelog: 'Initial version',
       });
-      navigate(`/script/${script.id}`);
+      if (script) navigate(`/script/${script.id}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Upload failed');
     } finally {
