@@ -11,7 +11,6 @@ export default function ScriptDetailPage() {
   const [script, setScript] = useState<Script | null>(null);
   const [versions, setVersions] = useState<ScriptVersion[]>([]);
   const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
-  const [compareVersion, setCompareVersion] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>('source');
   const [showAddVersion, setShowAddVersion] = useState(false);
@@ -27,17 +26,20 @@ export default function ScriptDetailPage() {
     setLoading(true);
     const [s, v] = await Promise.all([fetchScript(scriptId), fetchVersions(scriptId)]);
     setScript(s); setVersions(v);
-    if (v.length > 0) {
-      setSelectedVersion(v[0].version_num);
-      if (v.length > 1) setCompareVersion(v[1].version_num);
-    }
+    if (v.length > 0) setSelectedVersion(v[0].version_num);
     setLoading(false);
   }
 
-  const currentVersion = versions.find(v => v.version_num === selectedVersion);
-  const previousVersion = versions.find(v => v.version_num === compareVersion);
+  // versions are sorted descending (latest first). Find the previous version
+  // relative to the selected one — no manual selection needed.
+  const selectedIndex = versions.findIndex(v => v.version_num === selectedVersion);
+  const currentVersion = versions[selectedIndex];
+  const previousVersion = selectedIndex >= 0 && selectedIndex < versions.length - 1
+    ? versions[selectedIndex + 1]
+    : null;
   const currentSemver = useMemo(() => computeSemver(versions, selectedVersion ?? 0), [versions, selectedVersion]);
   const isLatest = selectedVersion === versions[0]?.version_num;
+  const canDiff = currentVersion && previousVersion;
 
   const loadstringUrl = script ? `${window.location.origin}${window.location.pathname}#api/script/${script.id}` : '';
 
@@ -69,10 +71,8 @@ export default function ScriptDetailPage() {
   async function handleDeleteVersion() {
     if (!id || !selectedVersion || !confirm(`Delete v${selectedVersion}? This cannot be undone.`)) return;
     setUploading(true);
-    try {
-      await deleteVersion(id, selectedVersion);
-      await load(id);
-    } catch (e) { alert(e instanceof Error ? e.message : 'Failed'); }
+    try { await deleteVersion(id, selectedVersion); await load(id); }
+    catch (e) { alert(e instanceof Error ? e.message : 'Failed'); }
     finally { setUploading(false); }
   }
 
@@ -117,21 +117,14 @@ export default function ScriptDetailPage() {
           {versions.length > 1 && <button onClick={handleDeleteVersion} disabled={uploading} className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-[10px] font-semibold text-slate-400 transition-colors hover:text-danger hover:border-danger/30" title="Delete this version">Delete</button>}
         </div>
 
-        {/* View mode toggle + diff selector */}
-        <div className="mb-3 flex flex-wrap items-center gap-2">
+        {/* View mode toggle */}
+        <div className="mb-3 flex items-center gap-2">
           <div className="flex gap-1 rounded-lg border border-white/10 bg-[#14141a] p-1">
             <button onClick={() => setViewMode('source')} className={`rounded px-3 py-1 text-xs font-semibold transition-all ${viewMode === 'source' ? 'bg-accent/15 text-accent-light' : 'text-slate-500'}`}>Source</button>
-            <button onClick={() => setViewMode('diff')} disabled={versions.length < 2} className={`rounded px-3 py-1 text-xs font-semibold transition-all ${viewMode === 'diff' ? 'bg-accent/15 text-accent-light' : 'text-slate-500'} disabled:opacity-30`}>Diff</button>
+            <button onClick={() => setViewMode('diff')} disabled={!canDiff} className={`rounded px-3 py-1 text-xs font-semibold transition-all ${viewMode === 'diff' ? 'bg-accent/15 text-accent-light' : 'text-slate-500'} disabled:opacity-30`} title={!canDiff ? 'No previous version to compare' : ''}>Diff</button>
           </div>
-          {viewMode === 'diff' && versions.length >= 2 && (
-            <div className="flex items-center gap-2">
-              <select value={compareVersion ?? ''} onChange={(e) => setCompareVersion(Number(e.target.value))} className="rounded-lg border border-white/10 bg-[#14141a] px-2 py-1 text-xs text-slate-300">
-                {versions.filter(v => v.version_num !== selectedVersion).map(v => (
-                  <option key={v.version_num} value={v.version_num}>v{v.version_num}</option>
-                ))}
-              </select>
-              <span className="text-xs text-slate-600">→ v{selectedVersion}</span>
-            </div>
+          {viewMode === 'diff' && canDiff && (
+            <span className="text-xs text-slate-600">Comparing v{previousVersion.version_num} → v{currentVersion.version_num}</span>
           )}
         </div>
 
@@ -164,10 +157,16 @@ export default function ScriptDetailPage() {
         </div>
       )}
 
-      {viewMode === 'diff' && currentVersion && previousVersion && (
+      {viewMode === 'diff' && canDiff && (
         <div>
-          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">Diff: v{previousVersion.version_num} → v{currentVersion.version_num}</h2>
+          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">Changes in v{currentVersion.version_num}</h2>
           <DiffViewer oldCode={previousVersion.source_code} newCode={currentVersion.source_code} maxHeight="600px" />
+        </div>
+      )}
+
+      {viewMode === 'diff' && !canDiff && (
+        <div className="card p-8 text-center">
+          <p className="text-sm text-slate-500">No previous version to compare. This is the first version.</p>
         </div>
       )}
     </div>
