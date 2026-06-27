@@ -15,7 +15,7 @@ export default function DiffViewer({ oldCode, newCode, maxHeight = '500px' }: Di
   let lineNumNew = 1;
 
   return (
-    <div className="relative overflow-hidden rounded-lg border border-white/10 bg-bg-input">
+    <div className="relative overflow-hidden rounded-lg border border-white/10 bg-[#14141a]">
       <div className="border-b border-white/5 px-3 py-1.5">
         <span className="font-mono text-[10px] uppercase tracking-wider text-slate-600">Diff</span>
       </div>
