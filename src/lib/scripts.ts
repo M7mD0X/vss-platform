@@ -103,3 +103,25 @@ export function computeSemver(versions: { version_type: VersionType | null }[], 
   }
   return `${major}.${minor}.${patch}`;
 }
+
+/** Delete a specific version (not the whole script). */
+export async function deleteVersion(scriptId: string, versionNum: number): Promise<void> {
+  const { error } = await supabase.from('script_versions').delete().eq('script_id', scriptId).eq('version_num', versionNum);
+  if (error) throw new Error(`Failed to delete version: ${error.message}`);
+}
+
+/** Update a version's source code + changelog. */
+export async function updateVersion(scriptId: string, versionNum: number, params: { sourceCode?: string; changelog?: string }): Promise<void> {
+  const updates: Record<string, unknown> = {};
+  if (params.sourceCode !== undefined) { updates.source_code = params.sourceCode; updates.file_size = new Blob([params.sourceCode]).size; }
+  if (params.changelog !== undefined) updates.changelog = params.changelog;
+  const { error } = await supabase.from('script_versions').update(updates).eq('script_id', scriptId).eq('version_num', versionNum);
+  if (error) throw new Error(`Failed to update version: ${error.message}`);
+}
+
+/** Restore a version — creates a new latest version with this version's code. */
+export async function restoreVersion(scriptId: string, versionNum: number): Promise<ScriptVersion | null> {
+  const version = await fetchVersion(scriptId, versionNum);
+  if (!version) throw new Error('Version not found');
+  return addVersion(scriptId, { sourceCode: version.source_code, changelog: `Restored from v${versionNum}`, versionType: 'patch' });
+}

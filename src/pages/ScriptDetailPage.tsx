@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { fetchScript, fetchVersions, addVersion, computeSemver, type Script, type ScriptVersion, type VersionType } from '../lib/scripts';
+import { fetchScript, fetchVersions, addVersion, deleteVersion, updateVersion, restoreVersion, computeSemver, type Script, type ScriptVersion, type VersionType } from '../lib/scripts';
 import CodeBlock from '../components/CodeBlock';
 import DiffViewer from '../components/DiffViewer';
 
@@ -15,9 +15,12 @@ export default function ScriptDetailPage() {
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>('source');
   const [showAddVersion, setShowAddVersion] = useState(false);
+  const [showEditVersion, setShowEditVersion] = useState(false);
   const [newCode, setNewCode] = useState('');
   const [newChangelog, setNewChangelog] = useState('');
   const [versionType, setVersionType] = useState<VersionType>('patch');
+  const [editCode, setEditCode] = useState('');
+  const [editChangelog, setEditChangelog] = useState('');
   const [uploading, setUploading] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -37,6 +40,7 @@ export default function ScriptDetailPage() {
   const currentVersion = versions.find(v => v.version_num === selectedVersion);
   const previousVersion = versions.find(v => v.version_num === compareVersion);
   const currentSemver = useMemo(() => computeSemver(versions, selectedVersion ?? 0), [versions, selectedVersion]);
+  const isLatest = selectedVersion === versions[0]?.version_num;
 
   const loadstringUrl = script ? `${window.location.origin}${window.location.pathname}#api/script/${script.id}` : '';
 
@@ -57,6 +61,43 @@ export default function ScriptDetailPage() {
     finally { setUploading(false); }
   }
 
+  async function handleRestore() {
+    if (!id || !selectedVersion || !confirm(`Restore v${selectedVersion} as a new version?`)) return;
+    setUploading(true);
+    try { await restoreVersion(id, selectedVersion); await load(id); }
+    catch (e) { alert(e instanceof Error ? e.message : 'Failed'); }
+    finally { setUploading(false); }
+  }
+
+  async function handleDeleteVersion() {
+    if (!id || !selectedVersion || !confirm(`Delete v${selectedVersion}? This cannot be undone.`)) return;
+    setUploading(true);
+    try {
+      await deleteVersion(id, selectedVersion);
+      await load(id);
+    } catch (e) { alert(e instanceof Error ? e.message : 'Failed'); }
+    finally { setUploading(false); }
+  }
+
+  async function handleUpdateVersion(e: React.FormEvent) {
+    e.preventDefault();
+    if (!id || !selectedVersion) return;
+    setUploading(true);
+    try {
+      await updateVersion(id, selectedVersion, { sourceCode: editCode, changelog: editChangelog || undefined });
+      setShowEditVersion(false); setEditCode(''); setEditChangelog('');
+      await load(id);
+    } catch (e) { alert(e instanceof Error ? e.message : 'Failed'); }
+    finally { setUploading(false); }
+  }
+
+  function openEditVersion() {
+    if (!currentVersion) return;
+    setEditCode(currentVersion.source_code);
+    setEditChangelog(currentVersion.changelog || '');
+    setShowEditVersion(true);
+  }
+
   if (loading) return <div className="flex h-[60vh] items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-accent/30 border-t-accent" /></div>;
   if (!script) return <div className="card p-8 text-center"><p className="text-slate-400">Script not found.</p><Link to="/scripts" className="mt-3 inline-block text-sm font-semibold text-accent-light">← Back</Link></div>;
 
@@ -74,78 +115,73 @@ export default function ScriptDetailPage() {
       <div className="card p-4">
         <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">Loadstring URL</h2>
         <div className="flex items-center gap-2">
-          <code className="flex-1 truncate rounded-lg bg-bg-input px-3 py-2 font-mono text-xs text-slate-400">{loadstringUrl}</code>
+          <code className="flex-1 truncate rounded-lg bg-[#14141a] px-3 py-2 font-mono text-xs text-slate-400">{loadstringUrl}</code>
           <button onClick={handleCopyLoadstring} className={`btn-primary shrink-0 ${copied ? 'bg-success' : ''}`}>{copied ? '✓ Copied' : 'Copy'}</button>
         </div>
       </div>
 
-      {/* Version selector + view mode toggle */}
+      {/* Versions section with dropdown + actions */}
       <div className="card p-4">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Versions ({versions.length})</h2>
-          <div className="flex gap-1 rounded-lg border border-white/10 bg-bg-input p-1">
+          <div className="flex items-center gap-2">
+            {/* Version dropdown */}
+            <select value={selectedVersion ?? ''} onChange={(e) => setSelectedVersion(Number(e.target.value))} className="rounded-lg border border-white/10 bg-[#14141a] px-3 py-1.5 text-xs font-semibold text-slate-300">
+              {versions.map(v => (
+                <option key={v.version_num} value={v.version_num}>
+                  {v.version_num === versions[0]?.version_num ? `Latest (v${v.version_num})` : `v${v.version_num}`}
+                  {v.version_type ? ` — ${v.version_type}` : ''}
+                </option>
+              ))}
+            </select>
+            {/* Actions */}
+            <button onClick={openEditVersion} disabled={uploading} className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-[10px] font-semibold text-slate-400 transition-colors hover:text-accent-light hover:border-accent/30" title="Edit this version">Update</button>
+            {!isLatest && <button onClick={handleRestore} disabled={uploading} className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-[10px] font-semibold text-slate-400 transition-colors hover:text-warning hover:border-warning/30" title="Restore as new version">Restore</button>}
+            {versions.length > 1 && <button onClick={handleDeleteVersion} disabled={uploading} className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-[10px] font-semibold text-slate-400 transition-colors hover:text-danger hover:border-danger/30" title="Delete this version">Delete</button>}
+          </div>
+        </div>
+
+        {/* View mode toggle */}
+        <div className="mb-3 flex items-center gap-2">
+          <div className="flex gap-1 rounded-lg border border-white/10 bg-[#14141a] p-1">
             <button onClick={() => setViewMode('source')} className={`rounded px-3 py-1 text-xs font-semibold transition-all ${viewMode === 'source' ? 'bg-accent/15 text-accent-light' : 'text-slate-500'}`}>Source</button>
             <button onClick={() => setViewMode('diff')} disabled={versions.length < 2} className={`rounded px-3 py-1 text-xs font-semibold transition-all ${viewMode === 'diff' ? 'bg-accent/15 text-accent-light' : 'text-slate-500'} disabled:opacity-30`}>Diff</button>
           </div>
-        </div>
-
-        {/* Version tabs with semver badges */}
-        <div className="flex flex-wrap gap-2">
-          {versions.map(v => (
-            <button key={v.version_num} onClick={() => setSelectedVersion(v.version_num)}
-              className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all ${selectedVersion === v.version_num ? 'border-accent bg-accent/10 text-accent-light' : 'border-white/10 bg-white/5 text-slate-400 hover:text-slate-200'}`}>
-              <span>v{v.version_num}</span>
-              {v.version_type && (
-                <span className={`rounded px-1 py-0.5 text-[8px] uppercase ${
-                  v.version_type === 'major' ? 'bg-danger/20 text-danger' :
-                  v.version_type === 'minor' ? 'bg-warning/20 text-warning' :
-                  'bg-success/20 text-success'
-                }`}>{v.version_type}</span>
-              )}
-              <span className="text-[9px] text-slate-600">{new Date(v.created_at).toLocaleDateString()}</span>
-            </button>
-          ))}
-        </div>
-
-        {/* Diff version selector */}
-        {viewMode === 'diff' && versions.length >= 2 && (
-          <div className="mt-3 flex items-center gap-2 border-t border-white/5 pt-3">
-            <span className="text-xs text-slate-500">Compare:</span>
-            <select value={compareVersion ?? ''} onChange={(e) => setCompareVersion(Number(e.target.value))} className="rounded-lg border border-white/10 bg-bg-input px-2 py-1 text-xs text-slate-300">
-              {versions.filter(v => v.version_num !== selectedVersion).map(v => (
-                <option key={v.version_num} value={v.version_num}>v{v.version_num}</option>
-              ))}
-            </select>
-            <span className="text-xs text-slate-500">→ v{selectedVersion}</span>
-          </div>
-        )}
-
-        <div className="mt-3 flex justify-end">
-          <button onClick={() => setShowAddVersion(!showAddVersion)} className="text-xs font-semibold text-accent-light hover:underline">{showAddVersion ? 'Cancel' : '+ New Version'}</button>
+          {viewMode === 'diff' && versions.length >= 2 && (
+            <div className="flex items-center gap-2">
+              <select value={compareVersion ?? ''} onChange={(e) => setCompareVersion(Number(e.target.value))} className="rounded-lg border border-white/10 bg-[#14141a] px-2 py-1 text-xs text-slate-300">
+                {versions.filter(v => v.version_num !== selectedVersion).map(v => (
+                  <option key={v.version_num} value={v.version_num}>v{v.version_num}</option>
+                ))}
+              </select>
+              <span className="text-xs text-slate-600">→ v{selectedVersion}</span>
+            </div>
+          )}
+          <button onClick={() => setShowAddVersion(!showAddVersion)} className="ml-auto text-xs font-semibold text-accent-light hover:underline">{showAddVersion ? 'Cancel' : '+ New Version'}</button>
         </div>
 
         {/* Add version form */}
         {showAddVersion && (
-          <form onSubmit={handleAddVersion} className="mt-4 space-y-3 border-t border-white/5 pt-4">
+          <form onSubmit={handleAddVersion} className="mb-4 space-y-3 border-b border-white/5 pb-4">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div>
-                <label className="label">Changelog</label>
-                <input type="text" value={newChangelog} onChange={(e) => setNewChangelog(e.target.value)} className="input" placeholder="What changed?" />
-              </div>
-              <div>
-                <label className="label">Version Type</label>
-                <select value={versionType} onChange={(e) => setVersionType(e.target.value as VersionType)} className="input">
-                  <option value="patch">Patch (bug fix)</option>
-                  <option value="minor">Minor (new feature)</option>
-                  <option value="major">Major (breaking change)</option>
-                </select>
-              </div>
+              <div><label className="label">Changelog</label><input type="text" value={newChangelog} onChange={(e) => setNewChangelog(e.target.value)} className="input" placeholder="What changed?" /></div>
+              <div><label className="label">Version Type</label><select value={versionType} onChange={(e) => setVersionType(e.target.value as VersionType)} className="input"><option value="patch">Patch (bug fix)</option><option value="minor">Minor (new feature)</option><option value="major">Major (breaking change)</option></select></div>
             </div>
-            <div>
-              <label className="label">New Source Code</label>
-              <CodeBlock code={newCode} editable onChange={setNewCode} maxHeight="400px" />
-            </div>
+            <div><label className="label">New Source Code</label><CodeBlock code={newCode} editable onChange={setNewCode} maxHeight="400px" /></div>
             <button type="submit" disabled={uploading || !newCode} className="btn-primary w-full">{uploading ? 'Publishing…' : `Publish ${versionType} version`}</button>
+          </form>
+        )}
+
+        {/* Edit version form */}
+        {showEditVersion && currentVersion && (
+          <form onSubmit={handleUpdateVersion} className="mb-4 space-y-3 border-b border-white/5 pb-4">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-accent-light">Editing v{currentVersion.version_num}</h3>
+            <div><label className="label">Changelog</label><input type="text" value={editChangelog} onChange={(e) => setEditChangelog(e.target.value)} className="input" placeholder="What changed?" /></div>
+            <div><label className="label">Source Code</label><CodeBlock code={editCode} editable onChange={setEditCode} maxHeight="400px" /></div>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setShowEditVersion(false)} className="btn-secondary">Cancel</button>
+              <button type="submit" disabled={uploading} className="btn-primary flex-1">{uploading ? 'Saving…' : 'Save Changes'}</button>
+            </div>
           </form>
         )}
       </div>

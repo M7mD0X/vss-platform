@@ -7,44 +7,77 @@ interface DiffViewerProps {
   maxHeight?: string;
 }
 
-/** GitHub-style diff viewer — green for added lines, red for removed. */
+/**
+ * GitHub-style split diff viewer — two columns side by side.
+ * Left column = old version, right column = new version.
+ * Removed lines are red on the left, added lines are green on the right.
+ * Unchanged lines appear on both sides.
+ */
 export default function DiffViewer({ oldCode, newCode, maxHeight = '500px' }: DiffViewerProps) {
-  const diff = useMemo(() => diffLines(oldCode, newCode), [oldCode, newCode]);
+  const { leftLines, rightLines } = useMemo(() => {
+    const diff = diffLines(oldCode, newCode);
+    const left: { num: number; text: string; type: 'same' | 'removed' }[] = [];
+    const right: { num: number; text: string; type: 'same' | 'added' }[] = [];
+    let leftNum = 1;
+    let rightNum = 1;
 
-  let lineNumOld = 1;
-  let lineNumNew = 1;
+    for (const part of diff) {
+      const lines = part.value.split('\n');
+      if (lines[lines.length - 1] === '') lines.pop();
+
+      for (const line of lines) {
+        if (part.removed) {
+          left.push({ num: leftNum++, text: line, type: 'removed' });
+        } else if (part.added) {
+          right.push({ num: rightNum++, text: line, type: 'added' });
+        } else {
+          // Same line — pad the shorter side so they stay aligned
+          left.push({ num: leftNum++, text: line, type: 'same' });
+          right.push({ num: rightNum++, text: line, type: 'same' });
+        }
+      }
+    }
+
+    // Pad to equal length so both columns have the same height
+    while (left.length < right.length) left.push({ num: 0, text: '', type: 'same' });
+    while (right.length < left.length) right.push({ num: 0, text: '', type: 'same' });
+
+    return { leftLines: left, rightLines: right };
+  }, [oldCode, newCode]);
 
   return (
-    <div className="relative overflow-hidden rounded-lg border border-white/10 bg-[#14141a]">
-      <div className="border-b border-white/5 px-3 py-1.5">
-        <span className="font-mono text-[10px] uppercase tracking-wider text-slate-600">Diff</span>
+    <div className="overflow-hidden rounded-lg border border-white/10 bg-[#14141a]">
+      <div className="flex border-b border-white/5">
+        <div className="flex-1 px-3 py-1.5 text-center font-mono text-[10px] uppercase tracking-wider text-danger/80">Old</div>
+        <div className="border-l border-white/5" />
+        <div className="flex-1 px-3 py-1.5 text-center font-mono text-[10px] uppercase tracking-wider text-success/80">New</div>
       </div>
-      <div className="overflow-auto font-mono text-xs leading-relaxed" style={{ maxHeight }}>
-        {diff.map((part, i) => {
-          const lines = part.value.split('\n');
-          if (lines[lines.length - 1] === '') lines.pop();
-          return lines.map((line, j) => {
-            const isAdded = part.added;
-            const isRemoved = part.removed;
-            const bg = isAdded ? 'bg-success/10' : isRemoved ? 'bg-danger/10' : '';
-            const textColor = isAdded ? 'text-success' : isRemoved ? 'text-danger' : 'text-slate-400';
-            const prefix = isAdded ? '+' : isRemoved ? '-' : ' ';
-            const oldNum = isRemoved ? lineNumOld : '';
-            const newNum = isAdded ? lineNumNew : isRemoved ? '' : lineNumNew;
-
-            if (!isRemoved) lineNumNew++;
-            if (!isAdded) lineNumOld++;
-
-            return (
-              <div key={`${i}-${j}`} className={`flex ${bg}`}>
-                <span className="w-10 shrink-0 select-none border-r border-white/5 px-2 text-right text-slate-700">{oldNum}</span>
-                <span className="w-10 shrink-0 select-none border-r border-white/5 px-2 text-right text-slate-700">{newNum}</span>
-                <span className={`shrink-0 px-1 ${textColor}`}>{prefix}</span>
-                <span className={`px-2 ${textColor}`} style={{ whiteSpace: 'pre' }}>{line}</span>
+      <div className="overflow-auto" style={{ maxHeight }}>
+        <div className="flex">
+          {/* Left column (old) */}
+          <div className="flex-1 min-w-0">
+            {leftLines.map((line, i) => (
+              <div key={i} className={`flex ${line.type === 'removed' ? 'bg-danger/10' : ''}`}>
+                <span className="w-10 shrink-0 select-none border-r border-white/5 px-2 text-right font-mono text-[10px] leading-5 text-slate-700">{line.num || ''}</span>
+                <span className={`px-2 font-mono text-xs leading-5 whitespace-pre ${line.type === 'removed' ? 'text-danger' : 'text-slate-400'}`}>
+                  {line.type === 'removed' ? '- ' : '  '}{line.text}
+                </span>
               </div>
-            );
-          });
-        })}
+            ))}
+          </div>
+          <div className="border-l border-white/10" />
+          {/* Right column (new) */}
+          <div className="flex-1 min-w-0">
+            {rightLines.map((line, i) => (
+              <div key={i} className={`flex ${line.type === 'added' ? 'bg-success/10' : ''}`}>
+                <span className="w-10 shrink-0 select-none border-r border-white/5 px-2 text-right font-mono text-[10px] leading-5 text-slate-700">{line.num || ''}</span>
+                <span className={`px-2 font-mono text-xs leading-5 whitespace-pre ${line.type === 'added' ? 'text-success' : 'text-slate-400'}`}>
+                  {line.type === 'added' ? '+ ' : '  '}{line.text}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
