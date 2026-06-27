@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { fetchScript, fetchVersions, addVersion, deleteVersion, updateVersion, restoreVersion, computeSemver, type Script, type ScriptVersion, type VersionType } from '../lib/scripts';
+import { fetchScript, fetchVersions, addVersion, deleteVersion, restoreVersion, computeSemver, type Script, type ScriptVersion, type VersionType } from '../lib/scripts';
 import CodeBlock from '../components/CodeBlock';
 import DiffViewer from '../components/DiffViewer';
 
@@ -15,12 +15,9 @@ export default function ScriptDetailPage() {
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>('source');
   const [showAddVersion, setShowAddVersion] = useState(false);
-  const [showEditVersion, setShowEditVersion] = useState(false);
   const [newCode, setNewCode] = useState('');
   const [newChangelog, setNewChangelog] = useState('');
   const [versionType, setVersionType] = useState<VersionType>('patch');
-  const [editCode, setEditCode] = useState('');
-  const [editChangelog, setEditChangelog] = useState('');
   const [uploading, setUploading] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -79,25 +76,6 @@ export default function ScriptDetailPage() {
     finally { setUploading(false); }
   }
 
-  async function handleUpdateVersion(e: React.FormEvent) {
-    e.preventDefault();
-    if (!id || !selectedVersion) return;
-    setUploading(true);
-    try {
-      await updateVersion(id, selectedVersion, { sourceCode: editCode, changelog: editChangelog || undefined });
-      setShowEditVersion(false); setEditCode(''); setEditChangelog('');
-      await load(id);
-    } catch (e) { alert(e instanceof Error ? e.message : 'Failed'); }
-    finally { setUploading(false); }
-  }
-
-  function openEditVersion() {
-    if (!currentVersion) return;
-    setEditCode(currentVersion.source_code);
-    setEditChangelog(currentVersion.changelog || '');
-    setShowEditVersion(true);
-  }
-
   if (loading) return <div className="flex h-[60vh] items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-accent/30 border-t-accent" /></div>;
   if (!script) return <div className="card p-8 text-center"><p className="text-slate-400">Script not found.</p><Link to="/scripts" className="mt-3 inline-block text-sm font-semibold text-accent-light">← Back</Link></div>;
 
@@ -120,29 +98,27 @@ export default function ScriptDetailPage() {
         </div>
       </div>
 
-      {/* Versions section with dropdown + actions */}
+      {/* Versions section */}
       <div className="card p-4">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="mb-3 flex flex-wrap items-center gap-2">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Versions ({versions.length})</h2>
-          <div className="flex items-center gap-2">
-            {/* Version dropdown */}
-            <select value={selectedVersion ?? ''} onChange={(e) => setSelectedVersion(Number(e.target.value))} className="rounded-lg border border-white/10 bg-[#14141a] px-3 py-1.5 text-xs font-semibold text-slate-300">
-              {versions.map(v => (
-                <option key={v.version_num} value={v.version_num}>
-                  {v.version_num === versions[0]?.version_num ? `Latest (v${v.version_num})` : `v${v.version_num}`}
-                  {v.version_type ? ` — ${v.version_type}` : ''}
-                </option>
-              ))}
-            </select>
-            {/* Actions */}
-            <button onClick={openEditVersion} disabled={uploading} className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-[10px] font-semibold text-slate-400 transition-colors hover:text-accent-light hover:border-accent/30" title="Edit this version">Update</button>
-            {!isLatest && <button onClick={handleRestore} disabled={uploading} className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-[10px] font-semibold text-slate-400 transition-colors hover:text-warning hover:border-warning/30" title="Restore as new version">Restore</button>}
-            {versions.length > 1 && <button onClick={handleDeleteVersion} disabled={uploading} className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-[10px] font-semibold text-slate-400 transition-colors hover:text-danger hover:border-danger/30" title="Delete this version">Delete</button>}
-          </div>
+          {/* Version dropdown */}
+          <select value={selectedVersion ?? ''} onChange={(e) => setSelectedVersion(Number(e.target.value))} className="rounded-lg border border-white/10 bg-[#14141a] px-3 py-1.5 text-xs font-semibold text-slate-300">
+            {versions.map(v => (
+              <option key={v.version_num} value={v.version_num}>
+                {v.version_num === versions[0]?.version_num ? `Latest (v${v.version_num})` : `v${v.version_num}`}
+                {v.version_type ? ` — ${v.version_type}` : ''}
+              </option>
+            ))}
+          </select>
+          {/* Actions */}
+          <button onClick={() => setShowAddVersion(!showAddVersion)} disabled={uploading} className="rounded-lg border border-accent/30 bg-accent/10 px-2.5 py-1.5 text-[10px] font-semibold text-accent-light transition-colors hover:bg-accent/20" title="Publish a new version">Update</button>
+          {!isLatest && <button onClick={handleRestore} disabled={uploading} className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-[10px] font-semibold text-slate-400 transition-colors hover:text-warning hover:border-warning/30" title="Restore as new version">Restore</button>}
+          {versions.length > 1 && <button onClick={handleDeleteVersion} disabled={uploading} className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-[10px] font-semibold text-slate-400 transition-colors hover:text-danger hover:border-danger/30" title="Delete this version">Delete</button>}
         </div>
 
-        {/* View mode toggle */}
-        <div className="mb-3 flex items-center gap-2">
+        {/* View mode toggle + diff selector */}
+        <div className="mb-3 flex flex-wrap items-center gap-2">
           <div className="flex gap-1 rounded-lg border border-white/10 bg-[#14141a] p-1">
             <button onClick={() => setViewMode('source')} className={`rounded px-3 py-1 text-xs font-semibold transition-all ${viewMode === 'source' ? 'bg-accent/15 text-accent-light' : 'text-slate-500'}`}>Source</button>
             <button onClick={() => setViewMode('diff')} disabled={versions.length < 2} className={`rounded px-3 py-1 text-xs font-semibold transition-all ${viewMode === 'diff' ? 'bg-accent/15 text-accent-light' : 'text-slate-500'} disabled:opacity-30`}>Diff</button>
@@ -157,30 +133,20 @@ export default function ScriptDetailPage() {
               <span className="text-xs text-slate-600">→ v{selectedVersion}</span>
             </div>
           )}
-          <button onClick={() => setShowAddVersion(!showAddVersion)} className="ml-auto text-xs font-semibold text-accent-light hover:underline">{showAddVersion ? 'Cancel' : '+ New Version'}</button>
         </div>
 
-        {/* Add version form */}
+        {/* Add version form (opened by "Update" button) */}
         {showAddVersion && (
-          <form onSubmit={handleAddVersion} className="mb-4 space-y-3 border-b border-white/5 pb-4">
+          <form onSubmit={handleAddVersion} className="space-y-3 border-t border-white/5 pt-4">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-accent-light">New Version</h3>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div><label className="label">Changelog</label><input type="text" value={newChangelog} onChange={(e) => setNewChangelog(e.target.value)} className="input" placeholder="What changed?" /></div>
               <div><label className="label">Version Type</label><select value={versionType} onChange={(e) => setVersionType(e.target.value as VersionType)} className="input"><option value="patch">Patch (bug fix)</option><option value="minor">Minor (new feature)</option><option value="major">Major (breaking change)</option></select></div>
             </div>
             <div><label className="label">New Source Code</label><CodeBlock code={newCode} editable onChange={setNewCode} maxHeight="400px" /></div>
-            <button type="submit" disabled={uploading || !newCode} className="btn-primary w-full">{uploading ? 'Publishing…' : `Publish ${versionType} version`}</button>
-          </form>
-        )}
-
-        {/* Edit version form */}
-        {showEditVersion && currentVersion && (
-          <form onSubmit={handleUpdateVersion} className="mb-4 space-y-3 border-b border-white/5 pb-4">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-accent-light">Editing v{currentVersion.version_num}</h3>
-            <div><label className="label">Changelog</label><input type="text" value={editChangelog} onChange={(e) => setEditChangelog(e.target.value)} className="input" placeholder="What changed?" /></div>
-            <div><label className="label">Source Code</label><CodeBlock code={editCode} editable onChange={setEditCode} maxHeight="400px" /></div>
             <div className="flex gap-2">
-              <button type="button" onClick={() => setShowEditVersion(false)} className="btn-secondary">Cancel</button>
-              <button type="submit" disabled={uploading} className="btn-primary flex-1">{uploading ? 'Saving…' : 'Save Changes'}</button>
+              <button type="button" onClick={() => setShowAddVersion(false)} className="btn-secondary">Cancel</button>
+              <button type="submit" disabled={uploading || !newCode} className="btn-primary flex-1">{uploading ? 'Publishing…' : `Publish ${versionType} version`}</button>
             </div>
           </form>
         )}
