@@ -41,6 +41,13 @@ export async function fetchVersions(scriptId: string): Promise<ScriptVersion[]> 
   return (data ?? []) as ScriptVersion[];
 }
 
+/** Fetch a specific version by version number. */
+export async function fetchVersion(scriptId: string, versionNum: number): Promise<ScriptVersion | null> {
+  const { data, error } = await supabase.from("script_versions").select("*").eq("script_id", scriptId).eq("version_num", versionNum).maybeSingle();
+  if (error) { console.error("[VSS] fetchVersion:", error.message); return null; }
+  return (data as ScriptVersion) ?? null;
+}
+
 export async function createScript(params: { name: string; sourceCode: string; changelog?: string }): Promise<Script | null> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
