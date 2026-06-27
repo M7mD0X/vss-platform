@@ -67,6 +67,7 @@ export default function UploadPage() {
           ))}
         </div>
 
+        {/* Paste method */}
         {method === 'paste' && (
           <div>
             <label className="label">Lua Source Code</label>
@@ -74,8 +75,9 @@ export default function UploadPage() {
           </div>
         )}
 
+        {/* File upload method — now shows editable content after upload */}
         {method === 'file' && (
-          <div>
+          <div className="space-y-3">
             <label className="label">Upload .lua / .luau file</label>
             <div className="rounded-lg border border-dashed border-white/15 bg-bg-input p-6 text-center transition-colors hover:border-accent/40">
               <input type="file" accept=".lua,.luau,text/plain" onChange={handleFileUpload} className="hidden" id="file-input" />
@@ -83,22 +85,41 @@ export default function UploadPage() {
                 <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-accent/10 text-accent">
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
                 </div>
-                <p className="text-sm text-slate-300">{sourceCode ? 'File loaded ✓' : 'Click to select a .lua file'}</p>
+                <p className="text-sm text-slate-300">{sourceCode ? 'File loaded ✓ — click to replace' : 'Click to select a .lua file'}</p>
                 <p className="mt-1 text-xs text-slate-500">{sourceCode ? `${sourceCode.length.toLocaleString()} chars` : 'or drag and drop'}</p>
               </label>
             </div>
+            {/* Show editable content after file upload */}
+            {sourceCode && (
+              <div>
+                <div className="mb-1.5 flex items-center justify-between">
+                  <label className="label mb-0">Source Code (editable)</label>
+                  <span className="text-[10px] text-slate-600">{sourceCode.length.toLocaleString()} chars</span>
+                </div>
+                <textarea value={sourceCode} onChange={(e) => setSourceCode(e.target.value)} className="input font-mono text-xs" rows={12} />
+              </div>
+            )}
           </div>
         )}
 
+        {/* GitHub sync method — shows editable content after fetch */}
         {method === 'github' && (
-          <div className="space-y-2">
+          <div className="space-y-3">
             <label className="label">GitHub Raw URL or Blob URL</label>
             <div className="flex gap-2">
               <input type="url" value={githubUrl} onChange={(e) => setGithubUrl(e.target.value)} className="input" placeholder="https://github.com/user/repo/blob/main/script.lua" />
               <button type="button" onClick={handleGitHubFetch} disabled={loading || !githubUrl} className="btn-secondary shrink-0">Fetch</button>
             </div>
             <p className="text-xs text-slate-500">Blob URLs auto-convert to raw.githubusercontent.com</p>
-            {sourceCode && <textarea value={sourceCode} onChange={(e) => setSourceCode(e.target.value)} className="input font-mono text-xs" rows={8} placeholder="Fetched code appears here" />}
+            {sourceCode && (
+              <div>
+                <div className="mb-1.5 flex items-center justify-between">
+                  <label className="label mb-0">Source Code (editable)</label>
+                  <span className="text-[10px] text-slate-600">{sourceCode.length.toLocaleString()} chars</span>
+                </div>
+                <textarea value={sourceCode} onChange={(e) => setSourceCode(e.target.value)} className="input font-mono text-xs" rows={10} />
+              </div>
+            )}
           </div>
         )}
 
