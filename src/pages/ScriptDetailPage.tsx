@@ -41,7 +41,8 @@ export default function ScriptDetailPage() {
   const isLatest = selectedVersion === versions[0]?.version_num;
   const canDiff = currentVersion && previousVersion;
 
-  const loadstringUrl = script ? `${window.location.origin}${window.location.pathname}#api/script/${script.id}` : '';
+  const deliveryBase = import.meta.env.VITE_DELIVERY_URL || 'https://mahveresjkbnooysylud.supabase.co/functions/v1/serve-script';
+  const loadstringUrl = script ? `${deliveryBase}?id=${script.id}` : '';
 
   async function handleCopyLoadstring() {
     if (!loadstringUrl) return;
