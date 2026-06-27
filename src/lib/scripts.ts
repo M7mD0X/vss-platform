@@ -1,5 +1,7 @@
 import { supabase } from './supabase';
 
+export type VersionType = 'patch' | 'minor' | 'major';
+
 export interface Script {
   id: string;
   owner_id: string;
@@ -15,35 +17,30 @@ export interface ScriptVersion {
   version_num: number;
   source_code: string;
   changelog: string | null;
+  version_type: VersionType | null;
   file_size: number;
   created_at: string;
 }
 
 /** Fetch all scripts owned by the current user. */
 export async function fetchMyScripts(): Promise<Script[]> {
-  const { data, error } = await supabase
-    .from('scripts')
-    .select('*')
-    .order('updated_at', { ascending: false });
+  const { data, error } = await supabase.from('scripts').select('*').order('updated_at', { ascending: false });
   if (error) { console.error('[VSS] fetchMyScripts:', error.message); return []; }
   return (data ?? []) as Script[];
 }
 
-/** Fetch a single script by ID. */
 export async function fetchScript(id: string): Promise<Script | null> {
   const { data, error } = await supabase.from('scripts').select('*').eq('id', id).maybeSingle();
   if (error) { console.error('[VSS] fetchScript:', error.message); return null; }
   return (data as Script) ?? null;
 }
 
-/** Fetch all versions for a script. */
 export async function fetchVersions(scriptId: string): Promise<ScriptVersion[]> {
   const { data, error } = await supabase.from('script_versions').select('*').eq('script_id', scriptId).order('version_num', { ascending: false });
   if (error) { console.error('[VSS] fetchVersions:', error.message); return []; }
   return (data ?? []) as ScriptVersion[];
 }
 
-/** Create a new script + its first version. */
 export async function createScript(params: { name: string; sourceCode: string; changelog?: string }): Promise<Script | null> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
@@ -54,44 +51,55 @@ export async function createScript(params: { name: string; sourceCode: string; c
 
   const { error: versionError } = await supabase.from('script_versions').insert({
     script_id: script.id, version_num: 1, source_code: params.sourceCode,
-    changelog: params.changelog || 'Initial version', file_size: new Blob([params.sourceCode]).size,
+    changelog: params.changelog || 'Initial version', version_type: 'major', file_size: new Blob([params.sourceCode]).size,
   });
-  if (versionError) { await supabase.from('scripts').delete().eq('id', script.id); throw new Error(`Failed to create version: ${versionError.message}`); }
+  if (versionError) { await supabase.from('scripts').delete().eq('id', script.id); throw new Error(`Failed: ${versionError.message}`); }
 
   return script as Script;
 }
 
-/** Add a new version to an existing script. */
-export async function addVersion(scriptId: string, params: { sourceCode: string; changelog?: string }): Promise<ScriptVersion | null> {
+export async function addVersion(scriptId: string, params: { sourceCode: string; changelog?: string; versionType: VersionType }): Promise<ScriptVersion | null> {
   const { data: script } = await supabase.from('scripts').select('latest_version').eq('id', scriptId).single();
   const nextVersion = (script?.latest_version ?? 0) + 1;
   const { data, error } = await supabase.from('script_versions').insert({
     script_id: scriptId, version_num: nextVersion, source_code: params.sourceCode,
-    changelog: params.changelog || `Version ${nextVersion}`, file_size: new Blob([params.sourceCode]).size,
+    changelog: params.changelog || `Version ${nextVersion}`, version_type: params.versionType,
+    file_size: new Blob([params.sourceCode]).size,
   }).select().single();
-  if (error) throw new Error(`Failed to add version: ${error.message}`);
+  if (error) throw new Error(`Failed: ${error.message}`);
   return data as ScriptVersion;
 }
 
-/** Rename a script. */
 export async function updateScript(id: string, name: string): Promise<void> {
   const { error } = await supabase.from('scripts').update({ name }).eq('id', id);
-  if (error) throw new Error(`Failed to update: ${error.message}`);
+  if (error) throw new Error(`Failed: ${error.message}`);
 }
 
-/** Delete a script and all its versions. */
 export async function deleteScript(id: string): Promise<void> {
   const { error } = await supabase.from('scripts').delete().eq('id', id);
-  if (error) throw new Error(`Failed to delete: ${error.message}`);
+  if (error) throw new Error(`Failed: ${error.message}`);
 }
 
-/** Fetch source code from a GitHub raw URL. */
 export async function fetchFromGitHub(url: string): Promise<string> {
   const blobMatch = url.match(/^https?:\/\/github\.com\/([^/]+)\/([^/]+)\/blob\/(.+)$/);
   const rawUrl = blobMatch ? `https://raw.githubusercontent.com/${blobMatch[1]}/${blobMatch[2]}/${blobMatch[3]}` : url;
   const res = await fetch(rawUrl);
   if (!res.ok) throw new Error(`GitHub fetch failed: HTTP ${res.status}`);
   const text = await res.text();
-  if (text.length < 10) throw new Error('Response too small — likely an error page');
+  if (text.length < 10) throw new Error('Response too small');
   return text;
+}
+
+/** Compute a semver string (e.g. 1.2.3) from a version number + type history. */
+export function computeSemver(versions: { version_type: VersionType | null }[], upToVersion: number): string {
+  let major = 0, minor = 0, patch = 0;
+  const sorted = [...versions].filter(v => v.version_type).reverse().reverse();
+  for (let i = 0; i < Math.min(upToVersion, sorted.length); i++) {
+    const v = sorted[i];
+    if (!v.version_type) continue;
+    if (v.version_type === 'major') { major++; minor = 0; patch = 0; }
+    else if (v.version_type === 'minor') { minor++; patch = 0; }
+    else { patch++; }
+  }
+  return `${major}.${minor}.${patch}`;
 }

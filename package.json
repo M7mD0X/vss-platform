@@ -11,12 +11,16 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.108.2",
+    "diff": "^9.0.0",
+    "prismjs": "^1.30.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-router-dom": "^7.18.0"
   },
   "devDependencies": {
+    "@types/diff": "^7.0.2",
     "@types/node": "^24.13.2",
+    "@types/prismjs": "^1.26.6",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^4.7.0",

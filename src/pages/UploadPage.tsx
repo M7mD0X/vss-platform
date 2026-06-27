@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createScript, fetchFromGitHub } from '../lib/scripts';
+import CodeBlock from '../components/CodeBlock';
 
 type UploadMethod = 'paste' | 'file' | 'github';
 
@@ -67,15 +68,13 @@ export default function UploadPage() {
           ))}
         </div>
 
-        {/* Paste method */}
         {method === 'paste' && (
           <div>
             <label className="label">Lua Source Code</label>
-            <textarea value={sourceCode} onChange={(e) => setSourceCode(e.target.value)} className="input font-mono text-xs" rows={12} placeholder="-- Paste your Lua code here" required />
+            <CodeBlock code={sourceCode} editable onChange={setSourceCode} maxHeight="500px" />
           </div>
         )}
 
-        {/* File upload method — now shows editable content after upload */}
         {method === 'file' && (
           <div className="space-y-3">
             <label className="label">Upload .lua / .luau file</label>
@@ -86,23 +85,17 @@ export default function UploadPage() {
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
                 </div>
                 <p className="text-sm text-slate-300">{sourceCode ? 'File loaded ✓ — click to replace' : 'Click to select a .lua file'}</p>
-                <p className="mt-1 text-xs text-slate-500">{sourceCode ? `${sourceCode.length.toLocaleString()} chars` : 'or drag and drop'}</p>
               </label>
             </div>
-            {/* Show editable content after file upload */}
             {sourceCode && (
               <div>
-                <div className="mb-1.5 flex items-center justify-between">
-                  <label className="label mb-0">Source Code (editable)</label>
-                  <span className="text-[10px] text-slate-600">{sourceCode.length.toLocaleString()} chars</span>
-                </div>
-                <textarea value={sourceCode} onChange={(e) => setSourceCode(e.target.value)} className="input font-mono text-xs" rows={12} />
+                <label className="label">Source Code (editable)</label>
+                <CodeBlock code={sourceCode} editable onChange={setSourceCode} maxHeight="500px" />
               </div>
             )}
           </div>
         )}
 
-        {/* GitHub sync method — shows editable content after fetch */}
         {method === 'github' && (
           <div className="space-y-3">
             <label className="label">GitHub Raw URL or Blob URL</label>
@@ -113,11 +106,8 @@ export default function UploadPage() {
             <p className="text-xs text-slate-500">Blob URLs auto-convert to raw.githubusercontent.com</p>
             {sourceCode && (
               <div>
-                <div className="mb-1.5 flex items-center justify-between">
-                  <label className="label mb-0">Source Code (editable)</label>
-                  <span className="text-[10px] text-slate-600">{sourceCode.length.toLocaleString()} chars</span>
-                </div>
-                <textarea value={sourceCode} onChange={(e) => setSourceCode(e.target.value)} className="input font-mono text-xs" rows={10} />
+                <label className="label">Source Code (editable)</label>
+                <CodeBlock code={sourceCode} editable onChange={setSourceCode} maxHeight="500px" />
               </div>
             )}
           </div>
